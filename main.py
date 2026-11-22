@@ -510,6 +510,31 @@ def wrap(text, font, scale, max_w):
         lines.append(cur)
     return lines
 
+
+def draw_justified_line(cv, x, y, line, font, scale, max_w, color, bold=True):
+    # Stretch one wrapped line to exactly max_w by widening its word gaps.
+    # Falls back to left-aligned when the line has <2 words, already fills
+    # the width, or a gap would grow past ~2x one space width (gappy).
+    # Wrapped lines usually fall 40-65px short, i.e. up to ~9px per gap,
+    # so a 1x guard left almost every line left-aligned.
+    words = line.split(" ")
+    if len(words) < 2:
+        draw_text(cv, x, y, line, font, scale, color, bold=bold)
+        return
+    gaps = len(words) - 1
+    space_adv = (_gw(font) + 1) * scale
+    extra = max_w - text_w(line, font, scale)
+    if extra <= 0 or extra / gaps > 2 * space_adv:
+        draw_text(cv, x, y, line, font, scale, color, bold=bold)
+        return
+    per = extra / gaps
+    cx = x
+    for wi, wd in enumerate(words):
+        draw_text(cv, cx, y, wd, font, scale, color, bold=bold)
+        cx += text_w(wd, font, scale)
+        if wi < gaps:
+            cx += space_adv + per
+
 # ---------- story data (verified Sun 22 Nov 2026, >=2 outlets each) ----------
 TICKER = ("Iran strikes US bases in Bahrain  •  COP31 vote at 13:00 WIB  •  "
           "Bitcoin back above $60,000  •  Mbappé scores his 100th Real goal")
@@ -518,7 +543,7 @@ STATS = [
     ("4th", "IRAN ATTACKS BAHRAIN"),
     ("$60,000", "BITCOIN REBOUNDS"),
     ("720/9", "INDIA RECORD TOTAL"),
-    ("100", "MBAPPÉ GOALS"),
+    ("100", "MBAPPE GOALS"),
     ("36", "CIKANDE MISSING"),
     ("704", "POLRI ROTATED"),
 ]
@@ -560,11 +585,11 @@ CARDS = [
      "Wellington. Rahul made 136 and Pant 128 off 153 balls; India lead by 352.",
      "SuperSport; IANS", "cricket", "720/9 • RECORD IN NZ"),
     ("SPORT • FOOTBALL",
-     "Real beat Barça 2–1; Mbappé hits 100",
+     "Real beat Barcelona 2–1; Mbappé hits 100",
      "Mbappé scored twice, in the 41st and 87th minutes, for his 100th Real "
-     "Madrid goal. Barcelona suffered their first league defeat; Barça lead on "
+     "Madrid goal. Barcelona suffered their first league defeat; Barcelona lead on "
      "27 points, Real have 24.",
-     "BBC; A-Sports", "clasico", "MBAPPÉ 100 • 2–1"),
+     "BBC; A-Sports", "clasico", "MBAPPE 100 • 2–1"),
     ("MIDDLE EAST • GAZA",
      "Aid-van strike kills 3; Gaza toll passes 1,660",
      "An Israeli strike hit a World Central Kitchen aid vehicle in Gaza City on "
@@ -591,19 +616,19 @@ CARDS = [
 
 # (headline, sources)
 BRIEFS = [
-    ("Russia opens organised crypto trading; retail cap 300,000 rubles a year",
+    ("Russia opens crypto trading; retail cap 300,000 rubles a year",
      "Bank of Russia; CryptoNews"),
     ("Reform UK: ban foreign graduates who skip loan repayments",
      "The Sun; The Telegraph"),
     ("76ers edge Bucks 132–129 in Saturday-night thriller",
      "NBA; ESPN"),
-    ("NHL: Lindholm scores four, Blues win 9–6, Scheifele sets Jets record",
+    ("NHL: Lindholm scores 4, Blues win 9–6, Scheifele sets Jets record",
      "TSN; Flashscore"),
     ("SpaceX to launch NROL-136 spy satellites tonight, 19:23 WIB",
      "Spaceflight Now; SpaceX"),
     ("Nepal PM Shah arrives in Delhi for first India visit",
      "Radio Nepal; IANS"),
-    ("SCO forum closes in Delhi; Pakistani minister first in India in 3 years",
+    ("SCO forum ends in Delhi; Pakistan minister first in India in 3 yrs",
      "ANI; MEA"),
     ("BMKG: heavy rain in 8 provinces today as cyclone seed 96S nears",
      "ANTARA; BMKG"),
@@ -637,166 +662,333 @@ BRIEFS = [
 def vlabel(cv, x, y, w, h, text, bar=NAVY, fg=WHITE):
     # dark label bar across the bottom of the visual box; text shrinks to fit
     cv.rect(x, y + h - 16, w, 16, bar)
-    sc = 0.62
-    while text_w(text, 5, sc) > w - 8 and sc > 0.4:
+    sc = 0.8
+    while text_w(text, 5, sc) > w - 8 and sc > 0.55:
         sc -= 0.03
     draw_text_c(cv, x + w / 2.0, y + h - 13.5, text, 5, sc, fg, bold=True)
 
 
 def v_bahrain(cv, x, y, w, h, label):
     cv.rect(x, y, w, h, (16, 30, 66))
-    # simplified Gulf: Saudi land left, Qatar peninsula, Bahrain island
+    # Saudi land left, Qatar peninsula, Bahrain island with a Patriot radar
     cv.poly([(x + 8, y + 36), (x + 52, y + 28), (x + 58, y + 54), (x + 44, y + 74),
              (x + 14, y + 70)], (58, 96, 140))
     cv.poly([(x + 66, y + 40), (x + 86, y + 36), (x + 92, y + 52), (x + 78, y + 62),
              (x + 64, y + 56)], (58, 96, 140))
-    cv.circle(x + 74, y + 66, 4, GOLD, fill=True)  # Bahrain island
-    cv.circle(x + 74, y + 66, 7, GOLD, fill=False)
-    # missile arcs from the upper right (Iran) down to Bahrain
-    cv.arc(x + 108, y + 8, 34, 1.2, 2.4, RED, 2.0)
-    cv.arc(x + 108, y + 8, 24, 1.2, 2.4, (232, 120, 110), 1.6)
+    # Patriot radar dish + launcher on the island shore
+    cv.arc(x + 58, y + 36, 7, -2.6, -0.5, (200, 210, 225), 1.6)
+    cv.line(x + 58, y + 36, x + 58, y + 46, (200, 210, 225), 1.6)
+    cv.rect(x + 50, y + 46, 16, 5, (150, 160, 180))
+    cv.circle(x + 74, y + 68, 4, GOLD, fill=True)  # Bahrain island
+    cv.circle(x + 74, y + 68, 7, GOLD, fill=False)
+    # three missile arcs from the upper right (Iran) down to Bahrain
+    cv.arc(x + 108, y + 8, 34, 1.2, 2.4, RED, 3.0)
+    cv.arc(x + 108, y + 8, 24, 1.2, 2.4, (232, 120, 110), 2.4)
+    cv.arc(x + 108, y + 8, 15, 1.3, 2.4, YELLOW, 1.8)
     cv.circle(x + 88, y + 26, 3, RED, fill=True)
     cv.circle(x + 82, y + 38, 3, RED, fill=True)
-    draw_text(cv, x + 8, y + 8, "BAHRAIN", 5, 0.62, GOLD, bold=True)
-    draw_text(cv, x + 8, y + 18, "GULF", 5, 0.62, (150, 180, 220), bold=True)
+    # explosion burst where the missiles land, above the island
+    cv.poly([(x + 74, y + 48), (x + 77, y + 53), (x + 83, y + 51), (x + 79, y + 57),
+             (x + 85, y + 59), (x + 78, y + 60), (x + 80, y + 66), (x + 74, y + 62),
+             (x + 68, y + 66), (x + 70, y + 60), (x + 63, y + 59), (x + 69, y + 57),
+             (x + 65, y + 51), (x + 71, y + 53)], YELLOW)
+    cv.circle(x + 74, y + 58, 3, ORANGE, fill=True)
+    # burning civilian facility on the Saudi shore
+    cv.rect(x + 10, y + 66, 16, 10, (90, 70, 60))
+    cv.poly([(x + 13, y + 66), (x + 16, y + 56), (x + 19, y + 62), (x + 22, y + 54),
+             (x + 25, y + 66)], (232, 120, 40))
+    cv.circle(x + 15, y + 52, 3, (120, 116, 110), fill=True)
+    cv.circle(x + 19, y + 48, 3, (100, 96, 90), fill=True)
+    # tanker in the Strait of Hormuz, bottom right
+    cv.rect(x + 86, y + 70, 24, 6, (30, 30, 34))
+    cv.rect(x + 104, y + 64, 6, 6, (200, 200, 200))
+    cv.line(x + 86, y + 76, x + 110, y + 76, (58, 96, 140), 1.2)
+    draw_text(cv, x + 8, y + 8, "BAHRAIN", 5, 0.8, GOLD, bold=True)
+    draw_text(cv, x + 8, y + 18, "GULF", 5, 0.8, (150, 180, 220), bold=True)
+    draw_text(cv, x + 86, y + 58, "HORMUZ", 5, 0.55, (150, 180, 220), bold=True)
     vlabel(cv, x, y, w, h, label)
 
 
 def v_cop31(cv, x, y, w, h, label):
     cv.rect(x, y, w, h, (24, 84, 72))
-    # clock face for the 13:00 WIB vote: hour hand at 1, minute hand at 12
-    cv.circle(x + 34, y + 38, 24, CREAM, fill=True)
-    cv.circle(x + 34, y + 38, 24, NAVY, fill=False)
-    cv.line(x + 34, y + 38, x + 46, y + 18, NAVY, 2.0)
-    cv.line(x + 34, y + 38, x + 34, y + 18, NAVY, 2.0)
-    cv.circle(x + 34, y + 38, 2, RED, fill=True)
-    draw_text(cv, x + 66, y + 24, "13:00", 8, 0.95, WHITE, bold=True, heavy=True)
-    draw_text(cv, x + 66, y + 42, "WIB", 8, 0.95, GOLD, bold=True, heavy=True)
-    # "fossil fuels" struck through
-    draw_text(cv, x + 10, y + 62, "fossil fuels", 5, 0.62, (200, 210, 220), bold=True)
-    cv.line(x + 8, y + 67, x + 76, y + 67, RED, 1.8)
+    # six mini flags of negotiating blocs along the top
+    for i, col in enumerate([BLUE, GREEN, RED, GOLD, WHITE, ORANGE]):
+        fx = 8 + i * 14
+        cv.rect(x + fx, y + 6, 10, 7, col)
+        cv.rect(x + fx, y + 6, 10, 7, WHITE, fill=False)
+    draw_text(cv, x + 92, y + 6, "ANTALYA", 5, 0.55, (200, 220, 210), bold=True)
+    # clock for the 13:00 WIB vote: hour hand at 1, minute hand at 12
+    cv.circle(x + 24, y + 36, 15, CREAM, fill=True)
+    cv.circle(x + 24, y + 36, 15, NAVY, fill=False)
+    cv.line(x + 24, y + 36, x + 32, y + 23, NAVY, 1.8)
+    cv.line(x + 24, y + 36, x + 24, y + 21, NAVY, 1.8)
+    cv.circle(x + 24, y + 36, 2, RED, fill=True)
+    draw_text(cv, x + 44, y + 26, "13:00", 8, 0.85, WHITE, bold=True, heavy=True)
+    draw_text(cv, x + 44, y + 42, "WIB", 8, 0.95, GOLD, bold=True, heavy=True)
+    # headline goal: 35% electricity by 2035
+    draw_text(cv, x + 86, y + 24, "35%", 8, 1.0, GOLD, bold=True, heavy=True)
+    draw_text(cv, x + 82, y + 42, "BY 2035", 5, 0.6, (200, 220, 210), bold=True)
+    # delegate desks in a row facing a podium with a microphone
+    for dx in range(6):
+        cv.rect(x + 8 + dx * 10, y + 56, 7, 5, (200, 210, 205))
+    cv.rect(x + 74, y + 52, 18, 10, (176, 124, 52))
+    cv.line(x + 83, y + 52, x + 83, y + 46, (200, 210, 225), 1.4)
+    cv.circle(x + 83, y + 45, 2, (200, 210, 225), fill=True)
+    # "fossil fuels" struck through, big
+    draw_text(cv, x + 8, y + 66, "fossil fuels", 5, 0.85, (210, 220, 228), bold=True)
+    cv.line(x + 6, y + 73, x + 78, y + 73, RED, 2.2)
+    # gavel at bottom right
+    cv.rect(x + 92, y + 66, 12, 5, (176, 124, 52))
+    cv.line(x + 96, y + 70, x + 110, y + 78, (120, 76, 52), 2.2)
     vlabel(cv, x, y, w, h, label)
 
 
 def v_cikande(cv, x, y, w, h, label):
     cv.rect(x, y, w, h, (66, 30, 24))
-    # factory: sawtooth roof, chimney, flame
+    # factory name + smoke puffs rising from the chimney
+    draw_text(cv, x + 8, y + 6, "PT FONUSA", 5, 0.6, (220, 200, 180), bold=True)
+    cv.circle(x + 96, y + 8, 5, (150, 146, 140), fill=True)
+    cv.circle(x + 100, y + 16, 6, (130, 126, 120), fill=True)
+    cv.circle(x + 94, y + 24, 5, (110, 106, 100), fill=True)
+    cv.circle(x + 102, y + 30, 4, (90, 86, 80), fill=True)
+    # factory: sawtooth roof, chimney, big two-tone flame
     cv.poly([(x + 10, y + 62), (x + 10, y + 40), (x + 26, y + 30), (x + 42, y + 40),
              (x + 58, y + 30), (x + 74, y + 40), (x + 90, y + 30), (x + 106, y + 40),
              (x + 106, y + 62)], (120, 76, 52))
-    cv.rect(x + 92, y + 14, 8, 30, (120, 76, 52))
-    cv.poly([(x + 52, y + 58), (x + 60, y + 34), (x + 66, y + 48), (x + 72, y + 30),
-             (x + 78, y + 58)], (232, 120, 40))
-    cv.poly([(x + 58, y + 58), (x + 64, y + 44), (x + 68, y + 52), (x + 72, y + 58)],
-            YELLOW)
-    draw_text(cv, x + 12, y + 66, "3", 8, 1.1, WHITE, bold=True, heavy=True)
-    draw_text(cv, x + 30, y + 70, "KILLED", 5, 0.6, (240, 200, 180), bold=True)
+    cv.rect(x + 92, y + 26, 8, 36, (120, 76, 52))
+    cv.poly([(x + 48, y + 60), (x + 56, y + 26), (x + 62, y + 42), (x + 68, y + 20),
+             (x + 74, y + 42), (x + 80, y + 28), (x + 86, y + 60)], (232, 120, 40))
+    cv.poly([(x + 56, y + 60), (x + 62, y + 38), (x + 67, y + 50), (x + 72, y + 36),
+             (x + 78, y + 60)], YELLOW)
+    # second smaller flame licking the roof edge + embers
+    cv.poly([(x + 88, y + 60), (x + 92, y + 44), (x + 96, y + 54), (x + 100, y + 46),
+             (x + 104, y + 60)], (232, 120, 40))
+    cv.circle(x + 40, y + 24, 2, ORANGE, fill=True)
+    cv.circle(x + 70, y + 16, 2, YELLOW, fill=True)
+    # rescue truck with a ladder at the bottom right
+    cv.rect(x + 84, y + 64, 26, 10, RED)
+    cv.rect(x + 104, y + 68, 6, 6, (200, 200, 200))
+    cv.circle(x + 90, y + 76, 3, INK, fill=True)
+    cv.circle(x + 104, y + 76, 3, INK, fill=True)
+    cv.line(x + 84, y + 64, x + 66, y + 46, (200, 200, 200), 1.4)
+    draw_text(cv, x + 12, y + 62, "3", 8, 1.4, WHITE, bold=True, heavy=True)
+    draw_text(cv, x + 32, y + 70, "KILLED", 5, 0.75, (240, 200, 180), bold=True)
     vlabel(cv, x, y, w, h, label)
 
 
 def v_bitcoin(cv, x, y, w, h, label):
     cv.rect(x, y, w, h, (14, 22, 40))
-    # candlesticks climbing from $55k (low left) to $60k (high right)
-    base_y = y + 66
-    candles = [(8, 46, 30, 1), (24, 40, 26, 1), (40, 48, 34, 0), (56, 30, 20, 1),
-               (72, 24, 14, 1), (88, 16, 8, 1)]
+    # faint price gridlines: $60k / $57k / $55k levels
+    for gy in (16, 38, 60):
+        cv.line(x + 6, y + gy, x + 110, y + gy, (40, 56, 84), 1.0)
+    # big candlesticks climbing from $55k (low left) to $60k (high right);
+    # each tuple is (cx, y_high, y_low) with y_high above y_low
+    candles = [(8, 52, 64, 1), (26, 46, 58, 1), (44, 52, 62, 0), (62, 36, 48, 1),
+               (80, 28, 40, 1), (98, 18, 30, 1)]
     for cx, top, bot, up in candles:
         col = GREEN if up else RED
-        cv.rect(x + cx, y + top, 10, bot - top, col)
-        cv.line(x + cx + 5, y + top - 4, x + cx + 5, y + bot + 4, col, 1.2)
-    cv.line(x + 6, y + 18, x + 108, y + 18, GOLD, 1.4)
-    draw_text(cv, x + 8, y + 6, "$60K", 5, 0.62, GOLD, bold=True)
-    draw_text(cv, x + 8, y + 70, "$55K", 5, 0.62, (150, 170, 200), bold=True)
+        cv.rect(x + cx, y + top, 12, bot - top, col)
+        cv.line(x + cx + 6, y + top - 5, x + cx + 6, y + bot + 5, col, 1.4)
+    # bold rising arrow $55K -> $60K
+    cv.line(x + 10, y + 60, x + 104, y + 14, GOLD, 2.6)
+    cv.line(x + 104, y + 14, x + 92, y + 14, GOLD, 2.6)
+    cv.line(x + 104, y + 14, x + 104, y + 26, GOLD, 2.6)
+    draw_text(cv, x + 8, y + 4, "$60K", 5, 0.8, GOLD, bold=True)
+    draw_text(cv, x + 8, y + 70, "$55K", 5, 0.8, (150, 170, 200), bold=True)
+    # Extreme Fear tag, top right
+    draw_text(cv, x + 66, y + 4, "EXTREME FEAR", 5, 0.6, (232, 120, 110), bold=True)
+    # Fear & Greed gauge, bottom right: red fear zone, needle at 9
+    cv.arc(x + 94, y + 78, 13, math.pi, 2 * math.pi, (90, 96, 110), 2.0)
+    cv.arc(x + 94, y + 78, 13, math.pi, math.pi + 0.5, RED, 2.0)
+    cv.line(x + 94, y + 78, x + 84, y + 70, WHITE, 1.6)
+    cv.circle(x + 94, y + 78, 2, WHITE, fill=True)
+    draw_text(cv, x + 78, y + 62, "FEAR 9", 5, 0.6, (232, 120, 110), bold=True)
     vlabel(cv, x, y, w, h, label)
 
 
 def v_cricket(cv, x, y, w, h, label):
     cv.rect(x, y, w, h, (20, 88, 52))
-    cv.rect(x + 8, y + 8, w - 16, 34, (10, 50, 30))
-    draw_text_c(cv, x + w / 2.0, y + 12, "720/9", 8, 1.35, WHITE, bold=True, heavy=True)
-    # bat + ball + stumps
-    cv.line(x + 20, y + 52, x + 44, y + 78, (214, 178, 94), 3.0)
-    cv.rect(x + 40, y + 74, 10, 6, (214, 178, 94))
-    cv.circle(x + 88, y + 56, 5, RED, fill=True)
-    cv.line(x + 84, y + 66, x + 84, y + 82, YELLOW, 1.6)
-    cv.line(x + 90, y + 66, x + 90, y + 82, YELLOW, 1.6)
-    cv.line(x + 96, y + 66, x + 96, y + 82, YELLOW, 1.6)
+    # scoreboard: record total + the two centurions
+    cv.rect(x + 8, y + 6, w - 16, 36, (10, 50, 30))
+    draw_text_c(cv, x + w / 2.0, y + 10, "720/9", 8, 1.5, WHITE, bold=True, heavy=True)
+    draw_text_c(cv, x + w / 2.0, y + 30, "RAHUL 136 • PANT 128", 5, 0.55, GOLD, bold=True)
+    # crowd: one dotted row in the stands
+    for i in range(14):
+        col = [WHITE, GOLD, RED, (200, 210, 225)][i % 4]
+        cv.circle(x + 10 + i * 7, y + 46, 1, col, fill=True)
+    # pitch strip, batsman, big bat + ball + stumps
+    cv.rect(x + 8, y + 50, w - 16, 30, (150, 128, 84))
+    # batsman figure at the crease, holding the bat
+    cv.circle(x + 20, y + 54, 3, (30, 30, 34), fill=True)
+    cv.line(x + 20, y + 57, x + 20, y + 66, (30, 30, 34), 1.8)
+    cv.line(x + 20, y + 66, x + 15, y + 76, (30, 30, 34), 1.8)
+    cv.line(x + 20, y + 66, x + 25, y + 76, (30, 30, 34), 1.8)
+    cv.line(x + 20, y + 60, x + 28, y + 64, (30, 30, 34), 1.6)
+    cv.line(x + 26, y + 58, x + 40, y + 72, (214, 178, 94), 3.2)
+    cv.rect(x + 38, y + 70, 12, 7, (214, 178, 94))
+    cv.circle(x + 90, y + 58, 6, RED, fill=True)
+    cv.circle(x + 90, y + 58, 6, WHITE, fill=False)
+    cv.line(x + 84, y + 68, x + 84, y + 80, YELLOW, 1.8)
+    cv.line(x + 90, y + 68, x + 90, y + 80, YELLOW, 1.8)
+    cv.line(x + 96, y + 68, x + 96, y + 80, YELLOW, 1.8)
     vlabel(cv, x, y, w, h, label)
 
 
 def v_clasico(cv, x, y, w, h, label):
     cv.rect(x, y, w, h, (246, 240, 226))
     cv.rect(x, y, w, 4, MAROON)
-    draw_text_c(cv, x + w / 2.0, y + 12, "100", 8, 2.1, MAROON, bold=True, heavy=True)
-    # football: white circle with black patches
-    cv.circle(x + w / 2.0, y + 62, 15, WHITE, fill=True)
-    cv.circle(x + w / 2.0, y + 62, 15, INK, fill=False)
-    cv.poly([(x + w / 2.0 - 4, y + 56), (x + w / 2.0 + 4, y + 56),
-             (x + w / 2.0 + 2, y + 64), (x + w / 2.0 - 2, y + 64)], INK)
-    cv.line(x + w / 2.0, y + 47, x + w / 2.0, y + 56, INK, 1.2)
-    cv.line(x + w / 2.0 - 12, y + 58, x + w / 2.0 - 4, y + 60, INK, 1.2)
-    cv.line(x + w / 2.0 + 12, y + 58, x + w / 2.0 + 4, y + 60, INK, 1.2)
+    # venue + goal minutes (41' and 87')
+    draw_text(cv, x + 8, y + 34, "CAMP NOU", 5, 0.6, (120, 110, 100), bold=True)
+    draw_text(cv, x + 84, y + 34, "41' • 87'", 5, 0.6, MAROON, bold=True)
+    # goal net behind the ball
+    cv.rect(x + w / 2.0 - 26, y + 46, 52, 26, WHITE)
+    for gx in range(-26, 27, 8):
+        cv.line(x + w / 2.0 + gx, y + 46, x + w / 2.0 + gx, y + 72, (180, 180, 180), 0.8)
+    for gy in range(46, 73, 8):
+        cv.line(x + w / 2.0 - 26, y + gy, x + w / 2.0 + 26, y + gy, (180, 180, 180), 0.8)
+    draw_text_c(cv, x + w / 2.0, y + 10, "100", 8, 2.1, MAROON, bold=True, heavy=True)
+    # football: bigger white ball with black patches
+    cv.circle(x + w / 2.0, y + 60, 17, WHITE, fill=True)
+    cv.circle(x + w / 2.0, y + 60, 17, INK, fill=False)
+    cv.poly([(x + w / 2.0 - 4, y + 54), (x + w / 2.0 + 4, y + 54),
+             (x + w / 2.0 + 2, y + 62), (x + w / 2.0 - 2, y + 62)], INK)
+    cv.line(x + w / 2.0, y + 43, x + w / 2.0, y + 54, INK, 1.2)
+    cv.line(x + w / 2.0 - 14, y + 56, x + w / 2.0 - 4, y + 58, INK, 1.2)
+    cv.line(x + w / 2.0 + 14, y + 56, x + w / 2.0 + 4, y + 58, INK, 1.2)
+    # striker silhouette shooting, left of the goal
+    cv.circle(x + 16, y + 48, 3, (30, 30, 60), fill=True)
+    cv.line(x + 16, y + 51, x + 16, y + 62, (30, 30, 60), 1.8)
+    cv.line(x + 16, y + 62, x + 10, y + 72, (30, 30, 60), 1.8)
+    cv.line(x + 16, y + 62, x + 24, y + 70, (30, 30, 60), 1.8)
+    cv.line(x + 16, y + 54, x + 26, y + 58, (30, 30, 60), 1.6)
+    # diving keeper, right of the goal
+    cv.circle(x + 100, y + 50, 3, (200, 160, 40), fill=True)
+    cv.line(x + 100, y + 53, x + 92, y + 60, (200, 160, 40), 1.8)
+    cv.line(x + 92, y + 60, x + 86, y + 70, (200, 160, 40), 1.8)
+    cv.line(x + 92, y + 60, x + 98, y + 70, (200, 160, 40), 1.8)
+    # confetti around the ball
+    for cx, cy, col in [(14, 16, GOLD), (100, 14, MAROON), (10, 44, TEAL),
+                        (104, 40, GOLD), (22, 74, MAROON), (96, 76, TEAL)]:
+        cv.circle(x + cx, y + cy, 2, col, fill=True)
     vlabel(cv, x, y, w, h, label)
 
 
 def v_gaza(cv, x, y, w, h, label):
     cv.rect(x, y, w, h, (196, 172, 128))
-    # aid van: white box van with red cross, on a road
+    # Gaza City skyline behind the van, one damaged block with smoke
+    for bx, bw, bh in [(6, 16, 18), (26, 12, 14), (42, 18, 16), (86, 14, 30), (104, 10, 22)]:
+        cv.rect(x + bx, y + 40 - bh, bw, bh, (150, 128, 96))
+    cv.poly([(x + 64, y + 40), (x + 70, y + 26), (x + 76, y + 40)], (150, 128, 96))
+    cv.circle(x + 70, y + 22, 3, (120, 116, 110), fill=True)
+    cv.circle(x + 73, y + 17, 3, (100, 96, 90), fill=True)
+    # aid van: bigger white box van with a large red cross, on a road
     cv.rect(x, y + 66, w, 14, (90, 84, 76))
-    cv.rect(x + 16, y + 30, 62, 30, WHITE)
-    cv.rect(x + 78, y + 40, 22, 20, WHITE)
-    cv.rect(x + 42, y + 38, 6, 14, RED)
-    cv.rect(x + 38, y + 42, 14, 6, RED)
-    cv.circle(x + 32, y + 62, 7, INK, fill=True)
-    cv.circle(x + 84, y + 62, 7, INK, fill=True)
-    cv.circle(x + 32, y + 62, 3, GREY, fill=True)
-    cv.circle(x + 84, y + 62, 3, GREY, fill=True)
-    draw_text(cv, x + 10, y + 8, "1,661", 8, 1.0, MAROON, bold=True, heavy=True)
+    cv.rect(x + 10, y + 28, 68, 32, WHITE)
+    cv.rect(x + 78, y + 40, 26, 20, WHITE)
+    cv.rect(x + 40, y + 36, 8, 16, RED)
+    cv.rect(x + 35, y + 41, 18, 7, RED)
+    draw_text(cv, x + 56, y + 38, "WCK", 5, 0.7, RED, bold=True)
+    cv.circle(x + 28, y + 62, 8, INK, fill=True)
+    cv.circle(x + 86, y + 62, 8, INK, fill=True)
+    cv.circle(x + 28, y + 62, 3, GREY, fill=True)
+    cv.circle(x + 86, y + 62, 3, GREY, fill=True)
+    # rubble pile on the road, right
+    cv.poly([(x + 96, y + 66), (x + 100, y + 60), (x + 104, y + 66)], (110, 104, 96))
+    cv.poly([(x + 104, y + 66), (x + 108, y + 61), (x + 112, y + 66)], (90, 84, 76))
+    draw_text(cv, x + 10, y + 6, "1,661", 8, 1.25, MAROON, bold=True, heavy=True)
+    draw_text(cv, x + 76, y + 8, "GAZA CITY", 5, 0.6, INK, bold=True)
     vlabel(cv, x, y, w, h, label)
 
 
 def v_polri(cv, x, y, w, h, label):
     cv.rect(x, y, w, h, (18, 28, 62))
-    # shield badge
-    cv.poly([(x + 34, y + 10), (x + 62, y + 16), (x + 62, y + 42), (x + 34, y + 60),
-             (x + 6, y + 42), (x + 6, y + 16)], GOLD)
-    cv.poly([(x + 34, y + 15), (x + 57, y + 20), (x + 57, y + 40), (x + 34, y + 54),
-             (x + 11, y + 40), (x + 11, y + 20)], NAVY)
-    draw_text_c(cv, x + 34, y + 28, "704", 8, 0.95, GOLD, bold=True, heavy=True)
-    draw_text(cv, x + 74, y + 30, "6", 8, 1.2, WHITE, bold=True, heavy=True)
-    draw_text(cv, x + 74, y + 50, "NEW", 5, 0.55, (170, 190, 220), bold=True)
-    draw_text(cv, x + 74, y + 60, "CHIEFS", 5, 0.55, (170, 190, 220), bold=True)
+    # shield badge, bigger
+    cv.poly([(x + 34, y + 8), (x + 64, y + 15), (x + 64, y + 42), (x + 34, y + 62),
+             (x + 4, y + 42), (x + 4, y + 15)], GOLD)
+    cv.poly([(x + 34, y + 14), (x + 58, y + 20), (x + 58, y + 40), (x + 34, y + 56),
+             (x + 10, y + 40), (x + 10, y + 20)], NAVY)
+    draw_text_c(cv, x + 34, y + 26, "704", 8, 1.25, GOLD, bold=True, heavy=True)
+    draw_text(cv, x + 74, y + 28, "6", 8, 1.4, WHITE, bold=True, heavy=True)
+    draw_text(cv, x + 74, y + 50, "NEW", 5, 0.7, (170, 190, 220), bold=True)
+    draw_text(cv, x + 74, y + 60, "CHIEFS", 5, 0.7, (170, 190, 220), bold=True)
+    # telegram number, top right
+    draw_text(cv, x + 72, y + 8, "ST/2598", 5, 0.55, GOLD, bold=True)
+    # row of officers below the shield + six dots for the six new chiefs
+    for i in range(4):
+        ox = 12 + i * 14
+        cv.circle(x + ox, y + 68, 3, (200, 200, 200), fill=True)
+        cv.rect(x + ox - 4, y + 71, 8, 7, (40, 60, 110))
+    for i in range(6):
+        cv.circle(x + 76 + i * 6, y + 74, 1, GOLD, fill=True)
     vlabel(cv, x, y, w, h, label)
 
 
 def v_f1(cv, x, y, w, h, label):
     cv.rect(x, y, w, h, (12, 12, 20))
-    # chequered strip at top
+    # chequered strip at top + waving flag at the right end
     for i in range(10):
-        cv.rect(x + i * 12, y + 6, 12, 8, WHITE if i % 2 == 0 else INK)
-        cv.rect(x + i * 12, y + 14, 12, 8, INK if i % 2 == 0 else WHITE)
-    # low F1 car silhouette
-    cv.poly([(x + 14, y + 52), (x + 30, y + 44), (x + 62, y + 44), (x + 78, y + 50),
-             (x + 100, y + 52), (x + 100, y + 60), (x + 14, y + 60)], RED)
-    cv.rect(x + 8, y + 40, 6, 18, RED)
-    cv.circle(x + 30, y + 62, 9, INK, fill=True)
-    cv.circle(x + 30, y + 62, 4, GREY, fill=True)
-    cv.circle(x + 84, y + 62, 9, INK, fill=True)
-    cv.circle(x + 84, y + 62, 4, GREY, fill=True)
-    cv.line(x + 8, y + 74, x + 108, y + 74, (120, 120, 120), 1.4)
+        cv.rect(x + i * 12, y + 5, 12, 7, WHITE if i % 2 == 0 else INK)
+        cv.rect(x + i * 12, y + 12, 12, 7, INK if i % 2 == 0 else WHITE)
+    cv.line(x + 108, y + 5, x + 108, y + 22, (200, 200, 200), 1.2)
+    cv.rect(x + 108, y + 5, 8, 6, WHITE)
+    cv.rect(x + 108, y + 11, 8, 6, INK)
+    # chasing pack: Norris (papaya, #2) and Piastri (orange, #3) behind Verstappen
+    cv.poly([(x + 12, y + 30), (x + 24, y + 25), (x + 44, y + 25), (x + 52, y + 29),
+             (x + 58, y + 30), (x + 58, y + 36), (x + 12, y + 36)], (232, 120, 40))
+    cv.circle(x + 22, y + 37, 6, INK, fill=True)
+    cv.circle(x + 48, y + 37, 6, INK, fill=True)
+    draw_text(cv, x + 32, y + 28, "2", 5, 0.6, WHITE, bold=True)
+    cv.poly([(x + 66, y + 26), (x + 76, y + 22), (x + 96, y + 22), (x + 104, y + 26),
+             (x + 108, y + 27), (x + 108, y + 33), (x + 66, y + 33)], (232, 150, 40))
+    cv.circle(x + 76, y + 34, 6, INK, fill=True)
+    cv.circle(x + 98, y + 34, 6, INK, fill=True)
+    draw_text(cv, x + 84, y + 25, "3", 5, 0.6, WHITE, bold=True)
+    # speed lines behind the lead car
+    for sy, sl in [(44, 30), (50, 44), (56, 58)]:
+        cv.line(x + 6, y + sy, x + 6 + sl, y + sy, (90, 90, 100), 1.6)
+    # track kerb dashes, behind the lead car
+    for i in range(6):
+        cv.rect(x + 6 + i * 18, y + 74, 9, 3, RED if i % 2 == 0 else WHITE)
+    # bigger, lower F1 car silhouette (Verstappen, red, #1)
+    cv.poly([(x + 12, y + 58), (x + 28, y + 48), (x + 62, y + 48), (x + 78, y + 54),
+             (x + 102, y + 56), (x + 102, y + 68), (x + 12, y + 68)], RED)
+    cv.rect(x + 6, y + 44, 7, 20, RED)
+    cv.circle(x + 30, y + 70, 10, INK, fill=True)
+    cv.circle(x + 30, y + 70, 4, GREY, fill=True)
+    cv.circle(x + 86, y + 70, 10, INK, fill=True)
+    cv.circle(x + 86, y + 70, 4, GREY, fill=True)
+    draw_text(cv, x + 46, y + 54, "1", 5, 0.8, WHITE, bold=True)
     vlabel(cv, x, y, w, h, label)
 
 
 def v_tesla(cv, x, y, w, h, label):
     cv.rect(x, y, w, h, (16, 34, 64))
-    # camera view cone + car
+    # camera view cone + car, with sensor arcs sweeping ahead
     cv.poly([(x + 58, y + 16), (x + 18, y + 52), (x + 98, y + 52)], (52, 110, 150))
     cv.poly([(x + 58, y + 16), (x + 34, y + 52), (x + 82, y + 52)], (78, 140, 180))
+    cv.arc(x + 58, y + 52, 26, -2.4, -0.7, (120, 190, 220), 1.4)
+    cv.arc(x + 58, y + 52, 34, -2.4, -0.7, (90, 160, 200), 1.2)
+    # detected objects inside the cone: a pedestrian and a cyclist, boxed
+    cv.circle(x + 49, y + 31, 3, WHITE, fill=True)
+    cv.line(x + 49, y + 34, x + 49, y + 42, WHITE, 1.6)
+    cv.line(x + 49, y + 42, x + 45, y + 50, WHITE, 1.6)
+    cv.line(x + 49, y + 42, x + 53, y + 50, WHITE, 1.6)
+    cv.rect(x + 42, y + 26, 15, 26, GREEN, fill=False)
+    cv.circle(x + 88, y + 31, 3, WHITE, fill=True)
+    cv.line(x + 88, y + 34, x + 88, y + 42, WHITE, 1.6)
+    cv.circle(x + 82, y + 46, 4, WHITE, fill=False)
+    cv.circle(x + 94, y + 46, 4, WHITE, fill=False)
+    cv.rect(x + 78, y + 26, 20, 26, GREEN, fill=False)
     cv.poly([(x + 22, y + 56), (x + 34, y + 48), (x + 72, y + 48), (x + 92, y + 56),
              (x + 92, y + 66), (x + 22, y + 66)], (220, 226, 232))
     cv.circle(x + 38, y + 68, 7, INK, fill=True)
     cv.circle(x + 80, y + 68, 7, INK, fill=True)
-    draw_text(cv, x + 10, y + 70, "25×", 8, 0.85, GOLD, bold=True, heavy=True)
+    # road with lane dashes below the car
+    cv.rect(x + 8, y + 74, w - 16, 4, (40, 44, 56))
+    for dx in range(3):
+        cv.rect(x + 16 + dx * 34, y + 75, 14, 2, (220, 220, 210))
+    draw_text(cv, x + 8, y + 6, "25×", 8, 1.15, GOLD, bold=True, heavy=True)
+    draw_text(cv, x + 70, y + 8, "FSD v15", 5, 0.7, WHITE, bold=True)
     vlabel(cv, x, y, w, h, label)
 
 
@@ -826,22 +1018,24 @@ def build():
 
     # masthead
     cv.rect(0, 0, W, 86, NAVY)
-    draw_text(cv, 16, 14, "10 TOP STORIES", 5, 0.6, GOLD, bold=True)
-    draw_text(cv, 16, 26, "• 20 BRIEFS", 5, 0.6, (170, 190, 220), bold=True)
-    draw_text_c(cv, W / 2.0, 10, "THE WORLD IN ONE DAY", 8, 1.5, WHITE,
+    draw_text(cv, 16, 12, "10 TOP STORIES", 5, 0.8, GOLD, bold=True)
+    draw_text(cv, 16, 26, "• 20 BRIEFS", 5, 0.8, (170, 190, 220), bold=True)
+    draw_text_c(cv, W / 2.0, 4, "THE WORLD IN ONE DAY", 8, 3.2, WHITE,
                 bold=True, heavy=True)
-    draw_text_c(cv, W / 2.0, 34, "SUNDAY, 22 NOVEMBER 2026", 8, 0.85, GOLD,
+    draw_text_c(cv, W / 2.0, 47, "SUNDAY, 22 NOVEMBER 2026", 8, 1.4, GOLD,
                 bold=True, heavy=True)
-    draw_text_c(cv, W / 2.0, 58,
+    draw_text_c(cv, W / 2.0, 68,
                 "Thirty stories from a world that did not slow down",
-                5, 0.6, (200, 210, 225), bold=True)
+                5, 0.8, (200, 210, 225), bold=True)
     cv.circle(948, 43, 26, GOLD, fill=True)
-    draw_text_c(cv, 948, 32, "30", 8, 1.1, NAVY, bold=True, heavy=True)
-    draw_text_c(cv, 948, 70, "STORIES", 5, 0.5, WHITE, bold=True)
+    # "30": digit ink spans font rows 1..9, so the glyph top sits at
+    # circle centre - (1 + 9/2) * scale to centre the ink vertically
+    draw_text_c(cv, 948, 29.8, "30", 8, 2.4, NAVY, bold=True, heavy=True)
+    draw_text_c(cv, 948, 70, "STORIES", 5, 0.65, WHITE, bold=True)
 
     # ticker
     cv.rect(0, 86, W, 26, MAROON)
-    draw_text_c(cv, W / 2.0, 92, TICKER, 5, 0.62, WHITE, bold=True)
+    draw_text_c(cv, W / 2.0, 92, TICKER, 5, 0.85, WHITE, bold=True)
 
     # stat strip: 6 tiles, two calm alternating tones
     tile_w, tile_h, gap = 161, 66, 8
@@ -851,9 +1045,9 @@ def build():
         bg = (255, 255, 255) if i % 2 == 0 else (222, 228, 236)
         cv.rect(tx, ty, tile_w, tile_h, bg)
         cv.rect(tx, ty, tile_w, tile_h, (196, 190, 180), fill=False)
-        draw_text_c(cv, tx + tile_w / 2.0, ty + 10, num, 8, 1.15,
+        draw_text_c(cv, tx + tile_w / 2.0, ty + 8, num, 8, 1.5,
                     MAROON if i % 2 == 0 else NAVY, bold=True, heavy=True)
-        draw_text_c(cv, tx + tile_w / 2.0, ty + 44, lab, 5, 0.55, INK, bold=True)
+        draw_text_c(cv, tx + tile_w / 2.0, ty + 44, lab, 5, 0.75, INK, bold=True)
 
     # region chips
     chip_y = 192
@@ -861,7 +1055,7 @@ def build():
     widths = []
     for name, n in CHIPS:
         t = "%s %d" % (name, n)
-        wch = text_w(t, 5, 0.55) + 14
+        wch = text_w(t, 5, 0.75) + 14
         widths.append(wch)
         total += wch
     total += 6 * (len(CHIPS) - 1)
@@ -869,7 +1063,7 @@ def build():
     for (name, n), wch in zip(CHIPS, widths):
         t = "%s %d" % (name, n)
         cv.rect(cx, chip_y, wch, 24, NAVY)
-        draw_text_c(cv, cx + wch / 2.0, chip_y + 6, t, 5, 0.55, WHITE, bold=True)
+        draw_text_c(cv, cx + wch / 2.0, chip_y + 6, t, 5, 0.75, WHITE, bold=True)
         cx += wch + 6
 
     # 10 story cards: 2 columns x 5 rows
@@ -882,49 +1076,55 @@ def build():
         cv.rect(x, y, card_w, card_h, (200, 196, 188), fill=False)
         VISUALS[vis](cv, x + 8, y + 8, 116, 96, vlab)
         tx = x + 132
-        draw_text(cv, tx, y + 9, chip, 5, 0.52, MAROON, bold=True)
-        hl = wrap(headline, 8, 0.62, 356)
-        hy = y + 24
+        draw_text(cv, tx, y + 8, chip, 5, 0.8, MAROON, bold=True)
+        hl = wrap(headline, 8, 1.05, 356)
+        hy = y + 22
         for ln in hl[:2]:
-            draw_text(cv, tx, hy, ln, 8, 0.62, INK, bold=True, heavy=True)
-            hy += 12
+            draw_text(cv, tx, hy, ln, 8, 1.05, INK, bold=True, heavy=True)
+            hy += 14
         by = hy + 2
-        bl = wrap(body, 5, 0.62, 356)
-        if len(bl) > 3:
-            bl = wrap(body, 5, 0.58, 356)
-        for ln in bl[:3]:
-            draw_text(cv, tx, by, ln, 5, 0.62, (52, 52, 52), bold=True)
+        bl = wrap(body, 5, 1.1, 356)
+        shown = bl[:4]
+        for li, ln in enumerate(shown):
+            # last line of the paragraph stays left-aligned; a shown 4th
+            # line is justified too when the paragraph is truncated there
+            last_para = (li == len(shown) - 1 and len(bl) <= 4)
+            if last_para:
+                draw_text(cv, tx, by, ln, 5, 1.1, (52, 52, 52), bold=True)
+            else:
+                draw_justified_line(cv, tx, by, ln, 5, 1.1, 356,
+                                    (52, 52, 52), bold=True)
             by += 10
-        draw_text(cv, tx, y + 96, "Sources: " + sources, 5, 0.55, GREY, bold=True)
+        draw_text(cv, tx, y + 98, "Sources: " + sources, 5, 0.75, GREY, bold=True)
 
     # briefs
     by0 = 824
-    draw_text(cv, 8, by0, "ALSO TODAY — 20 MORE BRIEFS", 8, 0.75, NAVY,
+    draw_text(cv, 8, by0, "ALSO TODAY — 20 MORE BRIEFS", 8, 1.0, NAVY,
               bold=True, heavy=True)
     cv.line(8, by0 + 20, W - 8, by0 + 20, NAVY, 1.4)
     col_x = [8, 344, 680]
     for i, (headline, sources) in enumerate(BRIEFS):
         col, row = i % 3, i // 3
         bx = col_x[col]
-        by = by0 + 28 + row * 18
-        draw_text(cv, bx, by, "•", 5, 0.6, MAROON, bold=True)
-        bl = wrap(headline, 5, 0.55, 322)
+        by = by0 + 28 + row * 19
+        draw_text(cv, bx, by, "•", 5, 0.8, MAROON, bold=True)
+        bl = wrap(headline, 5, 0.8, 322)
         ly = by
         for ln in bl[:2]:
-            draw_text(cv, bx + 8, ly, ln, 5, 0.55, INK, bold=True)
-            ly += 8
+            draw_text(cv, bx + 8, ly, ln, 5, 0.8, INK, bold=True)
+            ly += 9
 
     # footer
     draw_text_c(cv, W / 2.0, 976,
                 "Sources: Al Jazeera, Reuters, AFP, BBC, Detik, Liputan6, "
                 "ANTARA, BMKG, CoinMarketCap, Finnhub, ATP, Premier League",
-                5, 0.5, GREY, bold=True)
+                5, 0.65, GREY, bold=True)
     draw_text_c(cv, W / 2.0, 986,
                 "Facts checked against live reports as of 22 Nov 2026. "
                 "Figures are provisional and may change as stories develop.",
-                5, 0.5, GREY, bold=True)
+                5, 0.65, GREY, bold=True)
     cv.rect(0, 998, W, 26, NAVY)
-    draw_text_c(cv, W / 2.0, 1006, "THE WORLD IN ONE DAY", 5, 0.6, WHITE,
+    draw_text_c(cv, W / 2.0, 1006, "THE WORLD IN ONE DAY", 5, 0.75, WHITE,
                 bold=True)
     return cv
 
