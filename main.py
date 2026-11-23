@@ -537,13 +537,13 @@ def draw_justified_line(cv, x, y, line, font, scale, max_w, color, bold=True):
 
 # ---------- story data (verified Sun 22 Nov 2026, >=2 outlets each) ----------
 TICKER = ("Iran strikes US bases in Bahrain  •  COP31 vote at 13:00 WIB  •  "
-          "Bitcoin back above $60,000  •  Mbappé scores his 100th Real goal")
+          "Bitcoin back above $60,000  •  Barcelona fight back to beat Villarreal 3–2")
 
 STATS = [
     ("4th", "IRAN ATTACKS BAHRAIN"),
     ("$60,000", "BITCOIN REBOUNDS"),
     ("720/9", "INDIA RECORD TOTAL"),
-    ("100", "MBAPPE GOALS"),
+    ("3–2", "BARCELONA COMEBACK"),
     ("36", "CIKANDE MISSING"),
     ("704", "POLRI ROTATED"),
 ]
@@ -576,7 +576,7 @@ CARDS = [
     ("GLOBAL • MARKETS",
      "Bitcoin rebounds above $60,000",
      "Bitcoin traded near $60,000 on Sunday, up about 2% after sliding towards "
-     "$55,000 on Saturday. Ether rose 3.7%; the Fear & Greed index sat at 8-12, "
+     "$55,000 on Saturday. Ether rose 3.7%; the Fear and Greed index sat at 8-12, "
      "Extreme Fear.",
      "CoinMarketCap; Finnhub", "bitcoin", "$55K TO $60K"),
     ("SPORT • CRICKET",
@@ -585,11 +585,11 @@ CARDS = [
      "Wellington. Rahul made 136 and Pant 128 off 153 balls; India lead by 352.",
      "SuperSport; IANS", "cricket", "720/9 • RECORD IN NZ"),
     ("SPORT • FOOTBALL",
-     "Real beat Barcelona 2–1; Mbappé hits 100",
-     "Mbappé scored twice, in the 41st and 87th minutes, for his 100th Real "
-     "Madrid goal. Barcelona suffered their first league defeat; Barcelona lead on "
-     "27 points, Real have 24.",
-     "BBC; A-Sports", "clasico", "MBAPPE 100 • 2–1"),
+     "Barcelona fight back to beat Villarreal 3–2",
+     "Villarreal led 2–0 in seven minutes (Buchanan 5', Oluwaseyi 7'). "
+     "Barcelona hit back: Gerard Martin 57', Fermin Lopez 61', Navarro own "
+     "goal 67'. Barcelona lead on 36 points, three clear of Real.",
+     "Reuters; AP", "barca", "BARCA 3–2 • COMEBACK"),
     ("MIDDLE EAST • GAZA",
      "Aid-van strike kills 3; Gaza toll passes 1,660",
      "An Israeli strike hit a World Central Kitchen aid vehicle in Gaza City on "
@@ -834,19 +834,19 @@ def v_cricket(cv, x, y, w, h, label):
     vlabel(cv, x, y, w, h, label)
 
 
-def v_clasico(cv, x, y, w, h, label):
+def v_barca(cv, x, y, w, h, label):
     cv.rect(x, y, w, h, (246, 240, 226))
     cv.rect(x, y, w, 4, MAROON)
-    # venue + goal minutes (41' and 87')
+    # venue + the three goal minutes (57', 61', 67')
     draw_text(cv, x + 8, y + 34, "CAMP NOU", 5, 0.6, (120, 110, 100), bold=True)
-    draw_text(cv, x + 84, y + 34, "41' • 87'", 5, 0.6, MAROON, bold=True)
+    draw_text(cv, x + 44, y + 34, "57' • 61' • 67'", 5, 0.6, MAROON, bold=True)
     # goal net behind the ball
     cv.rect(x + w / 2.0 - 26, y + 46, 52, 26, WHITE)
     for gx in range(-26, 27, 8):
         cv.line(x + w / 2.0 + gx, y + 46, x + w / 2.0 + gx, y + 72, (180, 180, 180), 0.8)
     for gy in range(46, 73, 8):
         cv.line(x + w / 2.0 - 26, y + gy, x + w / 2.0 + 26, y + gy, (180, 180, 180), 0.8)
-    draw_text_c(cv, x + w / 2.0, y + 10, "100", 8, 2.1, MAROON, bold=True, heavy=True)
+    draw_text_c(cv, x + w / 2.0, y + 10, "3–2", 8, 2.1, MAROON, bold=True, heavy=True)
     # football: bigger white ball with black patches
     cv.circle(x + w / 2.0, y + 60, 17, WHITE, fill=True)
     cv.circle(x + w / 2.0, y + 60, 17, INK, fill=False)
@@ -994,7 +994,7 @@ def v_tesla(cv, x, y, w, h, label):
 
 VISUALS = {
     "bahrain": v_bahrain, "cop31": v_cop31, "cikande": v_cikande,
-    "bitcoin": v_bitcoin, "cricket": v_cricket, "clasico": v_clasico,
+    "bitcoin": v_bitcoin, "cricket": v_cricket, "barca": v_barca,
     "gaza": v_gaza, "polri": v_polri, "f1": v_f1, "tesla": v_tesla,
 }
 
